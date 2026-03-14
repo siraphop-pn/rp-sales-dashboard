@@ -328,136 +328,72 @@
                 return label;
             };
 
+            
             let trendLabels = [];
             let trendDatasets = [];
             
-            const colorPalette = ['#3b82f6', '#f59e0b', '#10b981', '#f43f5e', '#8b5cf6', '#0ea5e9'];
-            const bgPalette = ['rgba(59, 130, 246, 0.1)', 'rgba(245, 158, 11, 0.1)', 'rgba(16, 185, 129, 0.1)', 'rgba(244, 63, 94, 0.1)', 'rgba(139, 92, 246, 0.1)', 'rgba(14, 165, 233, 0.1)'];
+            const typeColors = { 'Sale': '#6366f1', 'Delivery': '#10b981' };
+            const typeLabels = { 'Sale': 'ยอดขาย', 'Delivery': 'รับเข้า' };
 
             if (selectedTimeView === 'yearly') {
-                const timeGroup = groupBy(filteredData, 'yearly');
-                trendLabels = Object.keys(timeGroup).sort();
-                const dataPts = trendLabels.map(t => isSales ? timeGroup[t].sales : timeGroup[t].units);
-                trendDatasets.push({
-                    label: isSales ? 'Revenue (฿)' : 'Units (คัน)',
-                    data: dataPts,
-                    borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    fill: true,
-                    tension: 0.3
+                const periods = Array.from(new Set(filteredData.map(d => d.yearly))).sort();
+                trendLabels = periods;
+                ['Sale', 'Delivery'].forEach(type => {
+                    if (type === 'Sale' && !showSale) return;
+                    if (type === 'Delivery' && !showDel) return;
+                    
+                    const typeData = filteredData.filter(d => d.type === type);
+                    const dataPts = periods.map(p => {
+                        return typeData.filter(d => d.yearly === p).reduce((s, d) => s + (isSales ? d.sales : d.units), 0);
+                    });
+                    
+                    trendDatasets.push({
+                        label: typeLabels[type],
+                        data: dataPts,
+                        borderColor: typeColors[type],
+                        backgroundColor: typeColors[type] + '1A',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3
+                    });
                 });
             } else {
                 const periodsSet = new Set();
                 const yearsSet = new Set();
-                
                 filteredData.forEach(d => {
                     if (d[selectedTimeView]) periodsSet.add(d[selectedTimeView]);
                     if (d.year) yearsSet.add(d.year);
                 });
-                
                 trendLabels = Array.from(periodsSet).sort();
                 const sortedYears = Array.from(yearsSet).sort();
                 
-                sortedYears.forEach((yr, idx) => {
-                    const yearData = filteredData.filter(d => d.year === yr);
-                    const timeGroup = groupBy(yearData, selectedTimeView);
-                    
-                    const dataPts = trendLabels.map(t => {
-                        const existsInRaw = rawData.some(r => r.year === yr && r[selectedTimeView] === t);
-                        if (!existsInRaw) return null;
-                        return timeGroup[t] ? (isSales ? timeGroup[t].sales : timeGroup[t].units) : 0;
-                    });
+                ['Sale', 'Delivery'].forEach(type => {
+                    if (type === 'Sale' && !showSale) return;
+                    if (type === 'Delivery' && !showDel) return;
 
-                    trendDatasets.push({
-                        label: ' ปี ' + yr + (isSales ? ' (Revenue)' : ' (Units)'),
-                        data: dataPts,
-                        borderColor: colorPalette[idx % colorPalette.length],
-                        backgroundColor: bgPalette[idx % bgPalette.length],
-                        borderWidth: 2,
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: colorPalette[idx % colorPalette.length],
-                        pointRadius: (selectedTimeView === 'daily') ? 0 : 4,
-                        fill: false,
-                        tension: 0.3,
-                        spanGaps: false
+                    sortedYears.forEach((yr, idx) => {
+                        const typeYearData = filteredData.filter(d => d.type === type && d.year === yr);
+                        const dataPts = trendLabels.map(t => {
+                            const val = typeYearData.filter(d => d[selectedTimeView] === t).reduce((s, d) => s + (isSales ? d.sales : d.units), 0);
+                            // If no record exists for this period in rawData for this year/type, return null to not plot 0
+                            return val || 0;
+                        });
+
+                        trendDatasets.push({
+                            label: typeLabels[type] + ' (' + yr + ')',
+                            data: dataPts,
+                            borderColor: typeColors[type],
+                            borderDash: type === 'Delivery' ? [5, 5] : [], // Dash for Delivery to distinguish
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            pointRadius: (selectedTimeView === 'daily') ? 0 : 4,
+                            fill: false,
+                            tension: 0.3
+                        });
                     });
                 });
             }
-
-            const uniqueYears = Array.from(new Set(filteredData.map(d => d.year))).sort();
-
-            const overallModelGroup = groupBy(filteredData, 'model');
-            const topModelKeys = Object.keys(overallModelGroup)
-                .map(k => ({ model: k, val: isSales ? overallModelGroup[k].sales : overallModelGroup[k].units }))
-                .sort((a, b) => b.val - a.val)
-                .slice(0, 15)
-                .map(item => item.model);
-
-            let modelDatasets = [];
-            uniqueYears.forEach((yr, idx) => {
-                const yearData = filteredData.filter(d => d.year === yr);
-                const modelGroup = groupBy(yearData, 'model');
-                
-                const yearTotal = yearData.reduce((sum, d) => sum + (isSales ? d.sales : d.units), 0);
-                
-                const dataPts = topModelKeys.map(m => {
-                    return modelGroup[m] ? (isSales ? modelGroup[m].sales : modelGroup[m].units) : 0;
-                });
-                
-                modelDatasets.push({
-                    label: 'ปี ' + yr,
-                    data: dataPts,
-                    backgroundColor: colorPalette[idx % colorPalette.length],
-                    borderRadius: 4,
-                    metaTotal: yearTotal
-                });
-            });
-
-            const overallColorGroup = groupBy(filteredData, 'color');
-            const topColorKeys = Object.keys(overallColorGroup)
-                .map(k => ({ color: k, val: isSales ? overallColorGroup[k].sales : overallColorGroup[k].units }))
-                .sort((a, b) => b.val - a.val)
-                .slice(0, 10)
-                .map(item => item.color);
-
-            let colorDatasets = [];
-            uniqueYears.forEach((yr, idx) => {
-                const yearData = filteredData.filter(d => d.year === yr);
-                const colorGroup = groupBy(yearData, 'color');
-                
-                const yearTotal = yearData.reduce((sum, d) => sum + (isSales ? d.sales : d.units), 0);
-                
-                const dataPts = topColorKeys.map(c => {
-                    return colorGroup[c] ? (isSales ? colorGroup[c].sales : colorGroup[c].units) : 0;
-                });
-                
-                colorDatasets.push({
-                    label: 'ปี ' + yr,
-                    data: dataPts,
-                    backgroundColor: colorPalette[idx % colorPalette.length],
-                    borderRadius: 4,
-                    metaTotal: yearTotal
-                });
-            });
-
-            const trendCtx = document.getElementById('trendChart').getContext('2d');
-            if (trendChartInstance) trendChartInstance.destroy();
-            trendChartInstance = new Chart(trendCtx, {
-                type: 'line',
-                data: {
-                    labels: trendLabels,
-                    datasets: trendDatasets
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    layout: {
-                        padding: { top: 20 } // Add some padding so labels don't get cut off
-                    },
-                    plugins: { 
-                        legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 6, font: {size: 10} } },
+ },
                         tooltip: { callbacks: { label: tooltipCallbackMultiLine } },
                         datalabels: {
                             display: function(context) {
