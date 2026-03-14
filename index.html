@@ -233,12 +233,18 @@
             
             const isSales = selectedMetric === 'sales';
 
+            const showSale = document.getElementById('showSale').checked;
+            const showDel = document.getElementById('showDel').checked;
+
             const filteredData = rawData.filter(d => {
                 let matchYear = (selectedYear === 'All') || (d.year === selectedYear);
                 let matchModel = selectedModels.includes('All') || selectedModels.includes(d.model);
                 let matchColor = selectedColors.includes('All') || selectedColors.includes(d.color);
                 
-                return matchYear && matchModel && matchColor;
+                // Delivery Sync Filter
+                let matchType = (showSale && d.type === 'Sale') || (showDel && d.type === 'Delivery');
+                
+                return matchYear && matchModel && matchColor && matchType;
             });
 
             const totalSales = filteredData.reduce((sum, d) => sum + d.sales, 0);
@@ -555,7 +561,9 @@
         
         document.getElementById("showSale").addEventListener("change", updateDashboard);
         document.getElementById("showDel").addEventListener("change", updateDashboard);
-document.getElementById('yearFilter').addEventListener('change', updateDashboard);
+        document.getElementById('showSale').addEventListener('change', updateDashboard);
+        document.getElementById('showDel').addEventListener('change', updateDashboard);
+        document.getElementById('yearFilter').addEventListener('change', updateDashboard);
         document.getElementById('metricFilter').addEventListener('change', updateDashboard);
         document.getElementById('timeViewFilter').addEventListener('change', updateDashboard);
         
